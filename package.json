@@ -1,0 +1,52 @@
+{
+  "name": "safegen",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "seed": "ts-node scripts/seed-data.ts"
+  },
+  "dependencies": {
+    "@azure/cosmos": "^4.4.1",
+    "@azure/identity": "^3.3.0",
+    "@azure/openai": "^1.0.0-beta.11",
+    "@azure/storage-blob": "^12.14.0",
+    "@headlessui/react": "^1.7.17",
+    "@heroicons/react": "^2.0.18",
+    "@langchain/openai": "^0.5.13",
+    "@radix-ui/react-progress": "^1.1.7",
+    "@radix-ui/react-scroll-area": "^1.2.9",
+    "@radix-ui/react-select": "^2.2.5",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-tabs": "^1.1.12",
+    "@types/uuid": "^10.0.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "langchain": "^0.3.28",
+    "lucide-react": "^0.515.0",
+    "next": "14.0.3",
+    "next-auth": "^4.24.5",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hook-form": "^7.48.2",
+    "tailwind-merge": "^3.3.1",
+    "tailwindcss": "^3.3.5",
+    "typescript": "^5.2.2",
+    "uuid": "^11.1.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "autoprefixer": "^10.4.16",
+    "dotenv": "^16.5.0",
+    "eslint": "^8.53.0",
+    "eslint-config-next": "14.0.3",
+    "postcss": "^8.4.31",
+    "ts-node": "^10.9.2"
+  }
+}

@@ -13,11 +13,22 @@ interface StepFormProps {
   steps: Step[]
   onComplete: (data: any) => void
   onCancel: () => void
+  currentStep?: number
+  onStepChange?: (step: number) => void
 }
 
-export function StepForm({ steps, onComplete, onCancel }: StepFormProps) {
-  const [currentStep, setCurrentStep] = useState(0)
+export function StepForm({ steps, onComplete, onCancel, currentStep: externalStep, onStepChange }: StepFormProps) {
+  const [internalStep, setInternalStep] = useState(0)
   const [formData, setFormData] = useState({})
+
+  const currentStep = externalStep !== undefined ? externalStep : internalStep
+  const setCurrentStep = (step: number) => {
+    if (onStepChange) {
+      onStepChange(step)
+    } else {
+      setInternalStep(step)
+    }
+  }
 
   const progress = ((currentStep + 1) / steps.length) * 100
 
@@ -29,12 +40,12 @@ export function StepForm({ steps, onComplete, onCancel }: StepFormProps) {
     if (currentStep === steps.length - 1) {
       onComplete(formData)
     } else {
-      setCurrentStep(prev => prev + 1)
+      setCurrentStep(currentStep + 1)
     }
   }
 
   const handleBack = () => {
-    setCurrentStep(prev => prev - 1)
+    setCurrentStep(currentStep - 1)
   }
 
   const currentStepData = steps[currentStep]

@@ -13,7 +13,7 @@ if (!endpoint || !key || !databaseId || !containerId) {
 }
 
 const client = new CosmosClient({ endpoint, key })
-const container = client.database(databaseId).container(containerId)
+const container = client.database(databaseId).container("Documents-1")
 
 export async function POST(request: Request) {
   try {

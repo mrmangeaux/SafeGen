@@ -1,37 +1,41 @@
 import { NextResponse } from 'next/server';
-import { CosmosClient } from '@azure/cosmos';
-
-const endpoint = process.env.COSMOS_ENDPOINT;
-const key = process.env.COSMOS_KEY;
-const databaseId = process.env.COSMOS_DATABASE_ID;
-
-if (!endpoint || !key || !databaseId) {
-  throw new Error('Missing required Cosmos DB configuration');
-}
-
-const client = new CosmosClient({ endpoint, key });
-const reviewContainer = client.database(databaseId).container('provider-reviews');
+import { getCosmosClient } from '@/lib/cosmos';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const review = await request.json();
+    console.log('Received review data:', review);
+
+    const client = await getCosmosClient();
+    const databaseId = process.env.NEXT_PUBLIC_COSMOS_DATABASE_ID;
     
+    if (!databaseId) {
+      throw new Error('NEXT_PUBLIC_COSMOS_DATABASE_ID is not set');
+    }
+
+    console.log('Connecting to database:', databaseId);
+    const database = client.database(databaseId);
+    const reviewsContainer = database.container('provider-reviews');
+
     // Generate a unique ID for the review
     const id = `pr${Date.now()}`;
     
-    const review = {
+    const reviewData = {
       id,
-      ...body,
-      createdAt: new Date().toISOString()
+      ...review,
+      createdAt: new Date().toISOString(),
+      type: 'provider_review'
     };
 
-    const { resource } = await reviewContainer.items.upsert(review);
+    console.log('Saving review with data:', reviewData);
+    const { resource } = await reviewsContainer.items.upsert(reviewData);
+    console.log('Review saved successfully:', resource);
     
     return NextResponse.json(resource);
   } catch (error) {
     console.error('Error creating review:', error);
     return NextResponse.json(
-      { error: 'Failed to create review' },
+      { error: 'Failed to create review', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
@@ -39,8 +43,18 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const { resources } = await reviewContainer.items
-      .query('SELECT * FROM c ORDER BY c.reviewDate DESC')
+    const client = await getCosmosClient();
+    const databaseId = process.env.NEXT_PUBLIC_COSMOS_DATABASE_ID;
+    
+    if (!databaseId) {
+      throw new Error('NEXT_PUBLIC_COSMOS_DATABASE_ID is not set');
+    }
+
+    const database = client.database(databaseId);
+    const reviewsContainer = database.container('provider-reviews');
+
+    const { resources } = await reviewsContainer.items
+      .query('SELECT * FROM c ORDER BY c.createdAt DESC')
       .fetchAll();
     
     return NextResponse.json(resources);

@@ -34,36 +34,43 @@ export async function GET(
     console.log('Provider found:', provider)
 
     if (!provider) {
+      console.log('Provider not found')
       return NextResponse.json({ error: 'Provider not found' }, { status: 404 })
     }
 
     const casesContainer = database.container('cases')
     const reviewsContainer = database.container('provider-reviews')
-    const documentsContainer = database.container('documents')
+    const documentsContainer = database.container('Documents-1')
 
     // Get all cases where this provider is involved
+    console.log('Fetching cases for provider')
     const { resources: cases } = await casesContainer.items
       .query({
         query: `
           SELECT * FROM c 
-          WHERE ARRAY_CONTAINS(c.providers, @providerId)
+          WHERE ARRAY_CONTAINS(c.services.providers, @providerId)
           OR ARRAY_CONTAINS(c.assignedTo, @providerId)
           OR c.assignedProviderId = @providerId
           OR c.primaryProviderId = @providerId
+          OR c.assignedWorker.id = @providerId
         `,
         parameters: [{ name: '@providerId', value: params.id }]
       })
       .fetchAll()
+    console.log('Cases found:', cases.length)
 
     // Get all reviews for this provider
+    console.log('Fetching reviews for provider')
     const { resources: reviews } = await reviewsContainer.items
       .query({
         query: 'SELECT * FROM c WHERE c.providerId = @providerId',
         parameters: [{ name: '@providerId', value: params.id }]
       })
       .fetchAll()
+    console.log('Reviews found:', reviews.length)
 
     // Get all documents related to this provider's cases
+    console.log('Fetching documents for provider')
     const caseIds = cases.map((c: any) => c.id)
     const { resources: documents } = await documentsContainer.items
       .query({
@@ -79,13 +86,16 @@ export async function GET(
         ]
       })
       .fetchAll()
+    console.log('Documents found:', documents.length)
 
-    return NextResponse.json({
+    const response = {
       provider,
       cases,
       reviews,
       documents
-    })
+    }
+    console.log('Sending response:', response)
+    return NextResponse.json(response)
   } catch (error) {
     console.error('Error fetching provider context:', error)
     if (error instanceof Error) {

@@ -35,6 +35,7 @@ export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps)
     const provider = providers.find(p => p.id === providerId)
     if (!provider) return
 
+    console.log('Selected provider:', provider)
     setSelectedProvider(provider)
     setIsLoading(true)
     setContext(null)
@@ -42,11 +43,16 @@ export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps)
 
     try {
       // Fetch provider context
+      console.log('Fetching provider context from:', routes.providers.context(providerId))
       const response = await fetch(routes.providers.context(providerId))
+      console.log('Response status:', response.status)
       if (!response.ok) throw new Error('Failed to fetch provider context')
+      
       const providerContext = await response.json()
+      console.log('Provider context:', providerContext)
 
       if (!providerContext.cases || providerContext.cases.length === 0) {
+        console.log('No cases found for provider')
         toast({
           title: 'No Cases Found',
           description: 'This provider has no cases to review',
@@ -57,6 +63,7 @@ export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps)
       }
 
       // Generate recommendations based on all available context
+      console.log('Generating recommendations...')
       const recommendations = await generateRecommendations(provider.id, {
         documents: providerContext.documents || [],
         summary: JSON.stringify({
@@ -70,6 +77,7 @@ export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps)
           attachments: providerContext.attachments
         })
       })
+      console.log('Recommendations generated:', recommendations)
 
       setContext(providerContext)
       setRecommendations(recommendations.recommendations)
@@ -255,23 +263,23 @@ export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps)
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Key Strengths</label>
+            <label className="text-sm font-medium">How do you plan to implement this feedback?</label>
             <textarea
               className="w-full mt-1 p-2 border rounded-md"
               rows={3}
-              value={formData.strengths || ''}
-              onChange={(e) => updateFormData({ strengths: e.target.value })}
-              placeholder="List the provider's key strengths..."
+              value={formData.implementationPlan || ''}
+              onChange={(e) => updateFormData({ implementationPlan: e.target.value })}
+              placeholder="Describe your plan for implementing the feedback and recommendations..."
             />
           </div>
           <div>
-            <label className="text-sm font-medium">Areas for Improvement</label>
+            <label className="text-sm font-medium">What would make this feedback better?</label>
             <textarea
               className="w-full mt-1 p-2 border rounded-md"
               rows={3}
-              value={formData.improvements || ''}
-              onChange={(e) => updateFormData({ improvements: e.target.value })}
-              placeholder="List areas where the provider can improve..."
+              value={formData.feedbackImprovement || ''}
+              onChange={(e) => updateFormData({ feedbackImprovement: e.target.value })}
+              placeholder="Share your thoughts on how this feedback process could be improved..."
             />
           </div>
         </div>
@@ -279,10 +287,61 @@ export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps)
     }
   ]
 
+  const handleComplete = async (formData: any) => {
+    if (!selectedProvider) return
+
+    const review = {
+      providerId: selectedProvider.id,
+      providerName: selectedProvider.name,
+      assessment: formData.assessment,
+      implementationPlan: formData.implementationPlan,
+      feedbackImprovement: formData.feedbackImprovement,
+      recommendations: recommendations.map(rec => ({
+        title: rec.title,
+        description: rec.description,
+        confidence: rec.confidence
+      })),
+      context: {
+        cases: context?.cases || [],
+        services: context?.services || [],
+        tasks: context?.tasks || [],
+        notes: context?.notes || []
+      }
+    }
+
+    console.log('Submitting review:', review)
+
+    try {
+      const response = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(review),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.details || 'Failed to save review')
+      }
+
+      const savedReview = await response.json()
+      console.log('Review saved successfully:', savedReview)
+      onComplete(savedReview)
+    } catch (error) {
+      console.error('Error saving review:', error)
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to save review',
+        variant: 'destructive',
+      })
+    }
+  }
+
   return (
     <StepForm
       steps={steps}
-      onComplete={onComplete}
+      onComplete={handleComplete}
       onCancel={onCancel}
     />
   )

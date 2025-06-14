@@ -129,7 +129,7 @@ export default function ReviewFlow() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold mb-2">Provider Review</h1>
+        <h1 className="text-2xl font-bold mb-2">Provider Reviews</h1>
         <div className="flex items-center space-x-2">
           {[0, 1, 2, 3].map((step) => (
             <div
@@ -156,7 +156,7 @@ export default function ReviewFlow() {
         <div className="space-y-6">
           {currentStep === 0 && (
             <div>
-              <h2 className="text-xl font-semibold mb-4">Select Provider</h2>
+              <h2 className="text-xl font-semibold mb-4">Select Providers</h2>
               {/* Provider selection UI */}
             </div>
           )}

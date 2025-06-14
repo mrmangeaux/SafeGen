@@ -1,18 +1,29 @@
 import { NextResponse } from 'next/server'
-import { CosmosClient } from '@azure/cosmos'
+// import { CosmosClient } from '@azure/cosmos'
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load environment variables from .env.local
+
+config({ path: resolve(__dirname, '../../../.env.local') });
+
+import { CosmosClient } from '@azure/cosmos';
 
 // Initialize Cosmos DB client
-const endpoint = process.env.COSMOS_ENDPOINT
-const key = process.env.COSMOS_KEY
-const databaseId = process.env.COSMOS_DATABASE_ID
-const containerId = process.env.COSMOS_CONTAINER_ID
+console.log("process.env")
+console.log(process.env)
+const endpoint = process.env.NEXT_PUBLIC_COSMOS_ENDPOINT
+const key = process.env.NEXT_PUBLIC_COSMOS_KEY
+const databaseId = process.env.NEXT_PUBLIC_COSMOS_DATABASE_ID
+const containerId = process.env.NEXT_PUBLIC_COSMOS_CONTAINER_ID
+console.log(endpoint, key, databaseId, containerId)
 
-if (!endpoint || !key || !databaseId || !containerId) {
+if (!endpoint || !key || !databaseId) {
   throw new Error('Missing required Cosmos DB configuration')
 }
 
 const client = new CosmosClient({ endpoint, key })
-const container = client.database(databaseId).container(containerId)
+const container = client.database(databaseId).container("Documents-1")
 
 export async function GET() {
   try {

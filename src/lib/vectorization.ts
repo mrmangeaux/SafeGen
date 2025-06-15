@@ -315,10 +315,14 @@ export async function generateRecommendations(
   context: {
     documents: VectorizedDocument[]
     summary: string
+    rubric?: {
+      name: string
+      content: string
+    }
   }
 ): Promise<{
   recommendations: Array<{
-    type: 'approach' | 'resource' | 'warning'
+    type: 'approach' | 'resource' | 'warning' | 'rubric_evaluation'
     title: string
     description: string
     confidence: number
@@ -326,6 +330,12 @@ export async function generateRecommendations(
   }>
 }> {
   try {
+    console.log('Generating recommendations with context:', {
+      hasRubric: !!context.rubric,
+      rubricName: context.rubric?.name,
+      rubricContent: context.rubric?.content
+    })
+
     // Create recommendations prompt template
     const recommendationsPrompt = PromptTemplate.fromTemplate(`
       Based on the following case context, generate specific recommendations for the caseworker.
@@ -336,21 +346,48 @@ export async function generateRecommendations(
       Recent Documents:
       {documents}
       
+      ${context.rubric ? `
+      Evaluation Rubric:
+      Name: ${context.rubric.name}
+      Content: ${context.rubric.content}
+      
+      REQUIRED: You MUST include a rubric_evaluation recommendation that evaluates the provider against this rubric.
+      The rubric_evaluation should be the first recommendation in the array.
+      
+      For the rubric evaluation:
+      1. Break down the evaluation by each section in the rubric
+      2. For each section, provide:
+         - A numerical grade (0-100)
+         - Specific evidence from the provider's performance
+         - Areas for improvement
+      3. End with an overall grade and summary
+      ` : ''}
+      
       Generate recommendations that:
-      1. Suggest specific approaches or strategies
-      2. Identify relevant resources or services
-      3. Highlight potential concerns or warnings
-      4. Include confidence levels and sources
+      1. If a rubric is provided, FIRST evaluate the provider against the rubric criteria (REQUIRED)
+      2. Suggest specific approaches or strategies
+      3. Identify relevant resources or services
+      4. Highlight potential concerns or warnings
+      5. Include confidence levels and sources
       
       Return ONLY a JSON object with the following structure, no markdown formatting or additional text:
       {{
         "recommendations": [
           {{
-            "type": "approach" | "resource" | "warning",
+            "type": "rubric_evaluation" | "approach" | "resource" | "warning",
             "title": "string",
             "description": "string",
             "confidence": number (0-1),
-            "source": "string"
+            "source": "string",
+            "sections": [
+              {{
+                "name": "string",
+                "grade": number (0-100),
+                "evidence": "string",
+                "improvements": "string"
+              }}
+            ],
+            "overallGrade": number (0-100)
           }}
         ]
       }}
@@ -372,6 +409,7 @@ export async function generateRecommendations(
         Type: ${doc.metadata.type}
         Date: ${doc.metadata.timestamp}
       `).join('\n'),
+      rubric: context.rubric
     })
 
     // Clean the response to handle potential markdown formatting
@@ -382,6 +420,7 @@ export async function generateRecommendations(
 
     try {
       const recommendations = JSON.parse(cleanedJson)
+      console.log('Generated recommendations:', recommendations)
       return recommendations
     } catch (parseError) {
       console.error('JSON Parse Error:', parseError)

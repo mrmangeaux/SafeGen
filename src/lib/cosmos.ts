@@ -17,6 +17,10 @@ export async function getCosmosClient(): Promise<CosmosClient> {
     const key = process.env.NEXT_PUBLIC_COSMOS_KEY;
 
     if (!endpoint || !key) {
+      console.error('Missing Cosmos DB configuration:', {
+        hasEndpoint: !!endpoint,
+        hasKey: !!key
+      });
       throw new Error('Missing required Cosmos DB configuration');
     }
 

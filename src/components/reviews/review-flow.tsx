@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { generateRecommendations } from '@/lib/vectorization'
 import { useToast } from '@/components/ui/use-toast'
 import { routes } from '@/lib/routes'
+import { RubricSelector } from '@/components/coaching/rubric-selector'
 
 interface Provider {
   id: string
@@ -24,10 +25,28 @@ interface ReviewFlowProps {
   onCancel: () => void
 }
 
+interface RubricSection {
+  name: string
+  grade: number
+  evidence: string
+  improvements: string
+}
+
+interface Recommendation {
+  type: 'approach' | 'resource' | 'warning' | 'rubric_evaluation'
+  title: string
+  description: string
+  confidence: number
+  source: string
+  sections?: RubricSection[]
+  overallGrade?: number
+}
+
 export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps) {
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null)
   const [context, setContext] = useState<any>(null)
   const [recommendations, setRecommendations] = useState<any[]>([])
+  const [selectedRubric, setSelectedRubric] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
 
@@ -63,7 +82,7 @@ export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps)
       }
 
       // Generate recommendations based on all available context
-      console.log('Generating recommendations...')
+      console.log('Generating recommendations with rubric:', selectedRubric)
       const recommendations = await generateRecommendations(provider.id, {
         documents: providerContext.documents || [],
         summary: JSON.stringify({
@@ -75,7 +94,11 @@ export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps)
           notes: providerContext.notes,
           communications: providerContext.communications,
           attachments: providerContext.attachments
-        })
+        }),
+        rubric: selectedRubric ? {
+          name: selectedRubric.name,
+          content: selectedRubric.content
+        } : undefined
       })
       console.log('Recommendations generated:', recommendations)
 
@@ -93,30 +116,50 @@ export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps)
     }
   }
 
+  const handleRubricSelect = (rubric: any) => {
+    console.log('Selected rubric:', rubric)
+    setSelectedRubric(rubric)
+    if (selectedProvider) {
+      // Regenerate recommendations with the new rubric
+      handleProviderSelect(selectedProvider.id)
+    }
+  }
+
   const steps = [
     {
-      title: 'Select Provider',
-      description: 'Choose a provider to review',
+      title: 'Select Provider and Rubric',
+      description: 'Choose a provider to review and select a rubric for evaluation',
       content: ({ formData, updateFormData }: any) => (
-        <div className="space-y-4">
-          <Select
-            value={formData.providerId}
-            onValueChange={(value) => {
-              updateFormData({ providerId: value })
-              handleProviderSelect(value)
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select a provider" />
-            </SelectTrigger>
-            <SelectContent>
-              {providers.map((provider) => (
-                <SelectItem key={provider.id} value={provider.id}>
-                  {provider.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <h3 className="font-medium">Select Provider</h3>
+            <Select
+              value={formData.providerId}
+              onValueChange={(value) => {
+                updateFormData({ providerId: value })
+                handleProviderSelect(value)
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a provider" />
+              </SelectTrigger>
+              <SelectContent>
+                {providers.map((provider) => (
+                  <SelectItem key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="font-medium">Select Rubric (Optional)</h3>
+            <RubricSelector
+              onRubricSelect={handleRubricSelect}
+              selectedRubricId={selectedRubric?.id}
+            />
+          </div>
         </div>
       )
     },
@@ -226,17 +269,53 @@ export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps)
 
               <div className="space-y-4">
                 <h3 className="font-medium">AI Recommendations</h3>
-                {recommendations.map((rec, index) => (
-                  <Card key={index}>
+                {selectedRubric && (
+                  <Card>
                     <CardContent className="pt-6">
-                      <h4 className="font-medium">{rec.title}</h4>
-                      <p className="text-sm text-muted-foreground">{rec.description}</p>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Confidence: {Math.round(rec.confidence * 100)}%
-                      </p>
+                      <h4 className="font-medium">Rubric Evaluation</h4>
+                      {recommendations.find(r => r.type === 'rubric_evaluation')?.sections?.map((section: RubricSection, index: number) => (
+                        <div key={index} className="mt-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h5 className="font-medium">{section.name}</h5>
+                            <div className="text-lg font-bold">
+                              {section.grade}%
+                            </div>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            <p><strong>Evidence:</strong> {section.evidence}</p>
+                            <p><strong>Areas for Improvement:</strong> {section.improvements}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {recommendations.find(r => r.type === 'rubric_evaluation')?.overallGrade && (
+                        <div className="mt-6 pt-4 border-t">
+                          <div className="flex items-center justify-between">
+                            <h5 className="font-medium">Overall Grade</h5>
+                            <div className="text-xl font-bold">
+                              {recommendations.find(r => r.type === 'rubric_evaluation')?.overallGrade}%
+                            </div>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-2">
+                            {recommendations.find(r => r.type === 'rubric_evaluation')?.description}
+                          </p>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
-                ))}
+                )}
+                {recommendations
+                  .filter(rec => rec.type !== 'rubric_evaluation')
+                  .map((rec, index) => (
+                    <Card key={index}>
+                      <CardContent className="pt-6">
+                        <h4 className="font-medium">{rec.title}</h4>
+                        <p className="text-sm text-muted-foreground">{rec.description}</p>
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Confidence: {Math.round(rec.confidence * 100)}%
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ))}
               </div>
             </>
           ) : (
@@ -262,6 +341,18 @@ export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps)
               placeholder="Provide your overall assessment of the provider's performance..."
             />
           </div>
+
+          <div>
+            <label className="text-sm font-medium">Case Notes</label>
+            <textarea
+              className="w-full mt-1 p-2 border rounded-md"
+              rows={4}
+              value={formData.notes || ''}
+              onChange={(e) => updateFormData({ notes: e.target.value })}
+              placeholder="Add any important notes or observations about the case..."
+            />
+          </div>
+
           <div>
             <label className="text-sm font-medium">How do you plan to implement this feedback?</label>
             <textarea
@@ -272,6 +363,7 @@ export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps)
               placeholder="Describe your plan for implementing the feedback and recommendations..."
             />
           </div>
+
           <div>
             <label className="text-sm font-medium">What would make this feedback better?</label>
             <textarea
@@ -296,6 +388,10 @@ export function ReviewFlow({ providers, onComplete, onCancel }: ReviewFlowProps)
       assessment: formData.assessment,
       implementationPlan: formData.implementationPlan,
       feedbackImprovement: formData.feedbackImprovement,
+      rubricId: formData.rubricId,
+      rubricName: formData.rubricName,
+      rubricContent: formData.rubricContent,
+      rubricEvaluation: formData.rubricEvaluation,
       recommendations: recommendations.map(rec => ({
         title: rec.title,
         description: rec.description,

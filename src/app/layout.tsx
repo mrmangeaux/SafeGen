@@ -1,12 +1,14 @@
+import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import NavigationIcons from '@/components/NavigationIcons'
 import { ToastProvider } from '@/components/ui/toast-provider'
 
 const inter = Inter({ subsets: ['latin'] })
 
-export const metadata = {
-  title: 'SafeGen - Child Welfare Case Management',
-  description: 'AI-powered child welfare case management system',
+export const metadata: Metadata = {
+  title: 'SafeGen',
+  description: 'Child Welfare Case Management System',
 }
 
 export default function RootLayout({
@@ -17,7 +19,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        {children}
+        <div className="min-h-screen bg-gray-50">
+          <NavigationIcons />
+          <div className="pt-16">
+            {children}
+          </div>
+        </div>
         <ToastProvider />
       </body>
     </html>

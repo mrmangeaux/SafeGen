@@ -17,6 +17,7 @@
     "@headlessui/react": "^1.7.17",
     "@heroicons/react": "^2.0.18",
     "@langchain/openai": "^0.5.13",
+    "@letta-ai/letta-client": "^0.1.130",
     "@radix-ui/react-checkbox": "^1.3.2",
     "@radix-ui/react-progress": "^1.1.7",
     "@radix-ui/react-scroll-area": "^1.2.9",

@@ -7,7 +7,8 @@ import {
   ClipboardDocumentCheckIcon, 
   AcademicCapIcon,
   PencilIcon,
-  PlayIcon
+  PlayIcon,
+  ChatBubbleLeftRightIcon
 } from '@heroicons/react/24/outline'
 
 export default function NavigationIcons() {
@@ -43,7 +44,13 @@ export default function NavigationIcons() {
       href: '/cases/simulation',
       icon: PlayIcon,
       description: 'Run case simulations and scenarios'
-    }
+    },
+    {
+      name: 'Chat',
+      href: '/chat',
+      icon: ChatBubbleLeftRightIcon,
+      description: 'Chat with mentor'
+    },
   ]
 
   return (

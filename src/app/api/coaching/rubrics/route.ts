@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { CosmosClient } from '@azure/cosmos'
 
 const endpoint = process.env.COSMOS_ENDPOINT!
@@ -14,15 +12,9 @@ const container = client.database(databaseId).container(containerId)
 // GET /api/coaching/rubrics - Get all rubrics
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
-
     const { resources: rubrics } = await container.items
       .query({
-        query: 'SELECT * FROM c WHERE c.userId = @userId ORDER BY c.createdAt DESC',
-        parameters: [{ name: '@userId', value: session.user.id }],
+        query: 'SELECT * FROM c ORDER BY c.createdAt DESC',
       })
       .fetchAll()
 
@@ -36,11 +28,6 @@ export async function GET() {
 // POST /api/coaching/rubrics - Create a new rubric
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
-
     const body = await request.json()
     const { name, content } = body
 
@@ -52,7 +39,6 @@ export async function POST(request: Request) {
       id: crypto.randomUUID(),
       name,
       content,
-      userId: session.user.id,
       createdAt: new Date().toISOString(),
       type: 'rubric',
     }

@@ -7,19 +7,100 @@ import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 
-interface CoachingFlowProps {
-  onComplete: (coaching: any) => void
-  onCancel: () => void
+interface Case {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
 }
 
-export function CoachingFlow({ onComplete, onCancel }: CoachingFlowProps) {
-  const [providers, setProviders] = useState<any[]>([])
-  const [selectedProvider, setSelectedProvider] = useState<any>(null)
-  const [context, setContext] = useState<any>(null)
+interface Provider {
+  id: string;
+  name: string;
+}
+
+interface Service {
+  id: string;
+  name: string;
+  description: string;
+}
+
+interface Task {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+}
+
+interface Note {
+  id: string;
+  content: string;
+  createdAt: string;
+}
+
+interface Review {
+  id: string;
+  content: string;
+  rating: number;
+  createdAt: string;
+}
+
+interface Context {
+  provider: Provider;
+  cases: Case[];
+  services: Service[];
+  tasks: Task[];
+  notes: Note[];
+  reviews: Review[];
+}
+
+interface Recommendation {
+  id?: string;
+  type: 'approach' | 'resource' | 'warning' | 'rubric_evaluation';
+  title: string;
+  description: string;
+  confidence: number;
+  source: string;
+}
+
+interface CoachingFlowProps {
+  cases: Case[];
+  onComplete: (coaching: { recommendations: Recommendation[] }) => void;
+  onCancel: () => void;
+}
+
+interface FormData {
+  providerId: string;
+  selectedCases: string[];
+  recommendations: Recommendation[];
+  additionalNotes?: string;
+  implementationNotes: Record<number, string>;
+}
+
+export function CoachingFlow({ cases, onComplete, onCancel }: CoachingFlowProps) {
+  const [providers, setProviders] = useState<Provider[]>([])
+  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null)
+  const [context, setContext] = useState<Context | null>(null)
   const [selectedCases, setSelectedCases] = useState<string[]>([])
-  const [recommendations, setRecommendations] = useState<any[]>([])
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
+
+  // Initialize form data
+  const [formData, setFormData] = useState<FormData>({
+    providerId: '',
+    selectedCases: [],
+    recommendations: [],
+    implementationNotes: {},
+    additionalNotes: ''
+  })
+
+  const updateFormData = (data: Partial<FormData>) => {
+    setFormData(prev => ({
+      ...prev,
+      ...data
+    }))
+  }
 
   useEffect(() => {
     const fetchProviders = async () => {
@@ -75,6 +156,15 @@ export function CoachingFlow({ onComplete, onCancel }: CoachingFlowProps) {
       toast({
         title: 'Error',
         description: 'Please select at least one case',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!context) {
+      toast({
+        title: 'Error',
+        description: 'No provider context available',
         variant: 'destructive',
       })
       return
@@ -136,10 +226,10 @@ export function CoachingFlow({ onComplete, onCancel }: CoachingFlowProps) {
     {
       title: 'Select Provider',
       description: 'Choose a provider to coach',
-      content: ({ formData, updateFormData }: any) => (
+      content: ({ formData, updateFormData }: { formData: any; updateFormData: (data: any) => void }) => (
         <div className="space-y-4">
           <Select
-            value={formData.providerId}
+            value={formData.providerId || ''}
             onValueChange={(value) => {
               updateFormData({ providerId: value })
               handleProviderSelect(value)
@@ -162,7 +252,7 @@ export function CoachingFlow({ onComplete, onCancel }: CoachingFlowProps) {
     {
       title: 'Select Cases',
       description: 'Choose specific cases to focus on',
-      content: ({ formData, updateFormData }: any) => (
+      content: ({ formData, updateFormData }: { formData: any; updateFormData: (data: any) => void }) => (
         <div className="space-y-6">
           {isLoading ? (
             <div className="text-center py-8">
@@ -232,7 +322,7 @@ export function CoachingFlow({ onComplete, onCancel }: CoachingFlowProps) {
     {
       title: 'Actionable Next Steps',
       description: 'Review and customize the recommended next steps',
-      content: ({ formData, updateFormData }: any) => (
+      content: ({ formData, updateFormData }: { formData: any; updateFormData: (data: any) => void }) => (
         <div className="space-y-6">
           {isLoading ? (
             <div className="text-center py-8">
@@ -252,8 +342,13 @@ export function CoachingFlow({ onComplete, onCancel }: CoachingFlowProps) {
                       <textarea
                         className="w-full mt-1 p-2 border rounded-md"
                         rows={2}
-                        value={formData[`implementation_${index}`] || ''}
-                        onChange={(e) => updateFormData({ [`implementation_${index}`]: e.target.value })}
+                        value={formData.implementationNotes?.[index] || ''}
+                        onChange={(e) => updateFormData({ 
+                          implementationNotes: { 
+                            ...(formData.implementationNotes || {}), 
+                            [index]: e.target.value 
+                          } 
+                        })}
                         placeholder="Add your notes on how to implement this step..."
                       />
                     </div>
@@ -283,7 +378,7 @@ export function CoachingFlow({ onComplete, onCancel }: CoachingFlowProps) {
   ]
 
   const handleComplete = async (formData: any) => {
-    if (!selectedProvider) return
+    if (!selectedProvider || !context) return
 
     const coaching = {
       providerId: selectedProvider.id,
@@ -291,14 +386,14 @@ export function CoachingFlow({ onComplete, onCancel }: CoachingFlowProps) {
       caseIds: selectedCases,
       recommendations: recommendations.map((rec, index) => ({
         ...rec,
-        implementationNotes: formData[`implementation_${index}`] || ''
+        implementationNotes: formData.implementationNotes?.[index] || ''
       })),
       additionalNotes: formData.additionalNotes,
       context: {
-        cases: context?.cases.filter((c: any) => selectedCases.includes(c.id)) || [],
-        services: context?.services || [],
-        tasks: context?.tasks || [],
-        notes: context?.notes || []
+        cases: context.cases.filter(c => selectedCases.includes(c.id)),
+        services: context.services,
+        tasks: context.tasks,
+        notes: context.notes
       }
     }
 

@@ -20,8 +20,8 @@ interface CoachingContext {
 }
 
 interface Recommendation {
-  id: string
-  type: 'approach' | 'resource' | 'warning'
+  id?: string
+  type: 'approach' | 'resource' | 'warning' | 'rubric_evaluation'
   title: string
   description: string
   confidence: number

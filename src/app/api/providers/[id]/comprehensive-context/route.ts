@@ -1,18 +1,25 @@
 import { NextResponse } from 'next/server'
 import { CosmosClient } from '@azure/cosmos'
 
-const client = new CosmosClient({
-  endpoint: process.env.COSMOS_ENDPOINT!,
-  key: process.env.COSMOS_KEY!
-})
+async function getClient() {
+  const endpoint = process.env.NEXT_PUBLIC_COSMOS_ENDPOINT;
+  const key = process.env.NEXT_PUBLIC_COSMOS_KEY;
 
-const database = client.database('safegen')
+  if (!endpoint || !key) {
+    throw new Error('Missing required Cosmos DB configuration');
+  }
+
+  return new CosmosClient({ endpoint, key });
+}
 
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    const client = await getClient();
+    const database = client.database('safegen');
+    
     // Get all containers
     const { resources: containers } = await database.containers.readAll().fetchAll()
     
@@ -47,35 +54,35 @@ export async function GET(
         })
         .fetchAll()
 
-      // Categorize items based on container type
+      // Add items to appropriate context array
       switch (container.id) {
         case 'providers':
-          context.provider = items[0] || null
-          break
+          context.provider = items[0] || null;
+          break;
         case 'cases':
-          context.cases.push(...items)
-          break
-        case 'reviews':
-          context.reviews.push(...items)
-          break
-        case 'documents':
-          context.documents.push(...items)
-          break
+          context.cases = items;
+          break;
+        case 'provider-reviews':
+          context.reviews = items;
+          break;
+        case 'Documents-1':
+          context.documents = items;
+          break;
         case 'communications':
-          context.communications.push(...items)
-          break
+          context.communications = items;
+          break;
         case 'services':
-          context.services.push(...items)
-          break
+          context.services = items;
+          break;
         case 'tasks':
-          context.tasks.push(...items)
-          break
+          context.tasks = items;
+          break;
         case 'notes':
-          context.notes.push(...items)
-          break
+          context.notes = items;
+          break;
         case 'attachments':
-          context.attachments.push(...items)
-          break
+          context.attachments = items;
+          break;
       }
     }
 
@@ -131,9 +138,9 @@ export async function GET(
 
     return NextResponse.json(context)
   } catch (error) {
-    console.error('Error fetching provider context:', error)
+    console.error('Error getting comprehensive context:', error)
     return NextResponse.json(
-      { error: 'Failed to fetch provider context' },
+      { error: 'Failed to get comprehensive context' },
       { status: 500 }
     )
   }

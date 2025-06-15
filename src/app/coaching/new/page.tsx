@@ -5,8 +5,15 @@ import { useRouter } from 'next/navigation';
 import { CoachingFlow } from '@/components/coaching/coaching-flow';
 import { useToast } from '@/components/ui/use-toast';
 
+interface Case {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+}
+
 export default function NewCoachingPage() {
-  const [cases, setCases] = useState([]);
+  const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();

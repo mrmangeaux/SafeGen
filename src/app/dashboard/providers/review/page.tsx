@@ -10,6 +10,15 @@ import { useToast } from '@/components/ui/use-toast'
 import { Loader2, Search } from 'lucide-react'
 import { getContextForCase, generateRecommendations } from '@/lib/vectorization'
 
+interface Recommendation {
+  id?: string
+  type: 'approach' | 'resource' | 'warning' | 'rubric_evaluation'
+  title: string
+  description: string
+  confidence: number
+  source: string
+}
+
 interface ProviderReview {
   id: string
   providerId: string
@@ -166,7 +175,7 @@ export default function ProviderReviewPage() {
     return rubricScores.reduce((total, score) => total + score.score, 0) / rubricScores.length
   }
 
-  const extractStrengths = (contexts: any[], recommendations: any) => {
+  const extractStrengths = (contexts: any[], recommendations: { recommendations: Recommendation[] }) => {
     // Extract strengths from contexts and recommendations
     const strengths = new Set<string>()
     
@@ -178,13 +187,13 @@ export default function ProviderReviewPage() {
     })
 
     recommendations.recommendations
-      .filter(r => r.type === 'approach' && r.confidence > 0.8)
+      .filter((r: Recommendation) => r.type === 'approach' && r.confidence > 0.8)
       .forEach(r => strengths.add(r.description))
 
     return Array.from(strengths)
   }
 
-  const extractAreasForImprovement = (contexts: any[], recommendations: any) => {
+  const extractAreasForImprovement = (contexts: any[], recommendations: { recommendations: Recommendation[] }) => {
     // Extract areas for improvement from contexts and recommendations
     const areas = new Set<string>()
     
@@ -196,7 +205,7 @@ export default function ProviderReviewPage() {
     })
 
     recommendations.recommendations
-      .filter(r => r.type === 'warning' || (r.type === 'approach' && r.confidence < 0.6))
+      .filter((r: Recommendation) => r.type === 'warning' || (r.type === 'approach' && r.confidence < 0.6))
       .forEach(r => areas.add(r.description))
 
     return Array.from(areas)

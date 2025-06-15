@@ -11,29 +11,6 @@ import { PromptTemplate } from '@langchain/core/prompts'
 import { StringOutputParser } from '@langchain/core/output_parsers'
 import { RunnableSequence } from '@langchain/core/runnables'
 
-// Initialize Cosmos DB client
-const endpoint = process.env.NEXT_PUBLIC_COSMOS_ENDPOINT;
-const key = process.env.NEXT_PUBLIC_COSMOS_KEY;
-const databaseId = process.env.NEXT_PUBLIC_COSMOS_DATABASE_ID;
-
-// Ensure environment variables are loaded
-if (!endpoint || !key || !databaseId) {
-  throw new Error(`Missing required Cosmos DB configuration:
-    NEXT_PUBLIC_COSMOS_ENDPOINT: ${endpoint ? '✓' : '✗'}
-    NEXT_PUBLIC_COSMOS_KEY: ${key ? '✓' : '✗'}
-    NEXT_PUBLIC_COSMOS_DATABASE_ID: ${databaseId ? '✓' : '✗'}
-  `);
-}
-
-// Initialize client and containers
-const client = new CosmosClient({ endpoint, key });
-const coachingContainer = client.database(databaseId).container('coaching-sessions');
-const reviewContainer = client.database(databaseId).container('provider-reviews');
-const casesContainer = client.database(databaseId).container('cases');
-const providersContainer = client.database(databaseId).container('providers');
-const childrenContainer = client.database(databaseId).container('children');
-const caregiversContainer = client.database(databaseId).container('caregivers');
-
 // Initialize LangChain models
 const embeddings = new OpenAIEmbeddings({
   openAIApiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
@@ -45,6 +22,48 @@ const chatModel = new ChatOpenAI({
   modelName: 'gpt-4-turbo-preview',
   temperature: 0.7,
 })
+
+let client: CosmosClient | null = null;
+let coachingContainer: any = null;
+let reviewContainer: any = null;
+let casesContainer: any = null;
+let providersContainer: any = null;
+let childrenContainer: any = null;
+let caregiversContainer: any = null;
+
+async function getContainers() {
+  if (!client) {
+    const endpoint = process.env.NEXT_PUBLIC_COSMOS_ENDPOINT;
+    const key = process.env.NEXT_PUBLIC_COSMOS_KEY;
+    const databaseId = process.env.NEXT_PUBLIC_COSMOS_DATABASE_ID;
+
+    if (!endpoint || !key || !databaseId) {
+      throw new Error(`Missing required Cosmos DB configuration:
+        NEXT_PUBLIC_COSMOS_ENDPOINT: ${endpoint ? '✓' : '✗'}
+        NEXT_PUBLIC_COSMOS_KEY: ${key ? '✓' : '✗'}
+        NEXT_PUBLIC_COSMOS_DATABASE_ID: ${databaseId ? '✓' : '✗'}
+      `);
+    }
+
+    client = new CosmosClient({ endpoint, key });
+    const database = client.database(databaseId);
+    coachingContainer = database.container('coaching-sessions');
+    reviewContainer = database.container('provider-reviews');
+    casesContainer = database.container('cases');
+    providersContainer = database.container('providers');
+    childrenContainer = database.container('children');
+    caregiversContainer = database.container('caregivers');
+  }
+
+  return {
+    coachingContainer,
+    reviewContainer,
+    casesContainer,
+    providersContainer,
+    childrenContainer,
+    caregiversContainer
+  };
+}
 
 interface VectorizedDocument {
   id: string
@@ -67,6 +86,11 @@ interface CaseMetadata {
   documentCount: number
   vectorCount: number
   summary?: string
+}
+
+interface Case {
+  id: string;
+  familyName?: string;
 }
 
 export async function vectorizeDocument(
@@ -181,7 +205,6 @@ export async function searchSimilarDocuments(
     providerId?: string
     limit?: number
     threshold?: number
-    type?: string
   } = {}
 ): Promise<VectorizedDocument[]> {
   try {
@@ -210,7 +233,6 @@ export async function searchSimilarDocuments(
             WHERE c.metadata.type = @type
             ${options.caseId ? 'AND c.metadata.caseId = @caseId' : ''}
             ${options.providerId ? 'AND c.metadata.providerId = @providerId' : ''}
-            ${options.type ? 'AND c.metadata.type = @searchType' : ''}
             ORDER BY similarity DESC
           `,
           parameters: [
@@ -219,7 +241,6 @@ export async function searchSimilarDocuments(
             { name: '@type', value: container.id.split('-')[0] },
             ...(options.caseId ? [{ name: '@caseId', value: options.caseId }] : []),
             ...(options.providerId ? [{ name: '@providerId', value: options.providerId }] : []),
-            ...(options.type ? [{ name: '@searchType', value: options.type }] : []),
           ],
         })
         .fetchAll()
@@ -444,177 +465,82 @@ export async function getContextForProvider(
     threshold?: number
   } = {}
 ): Promise<{
-  documents: VectorizedDocument[]
   summary: string
   caseContexts: Array<{
-    caseId: string
     familyName: string
-    context: string
     summary: string
-    coachingSessions: VectorizedDocument[]
-    reviews: VectorizedDocument[]
-    children: VectorizedDocument[]
-    caregivers: VectorizedDocument[]
+    context: string
   }>
+  documents: VectorizedDocument[]
 }> {
   try {
-    // Get all cases for the provider
+    const { casesContainer } = await getContainers();
+    
+    // Get all cases for this provider
     const { resources: cases } = await casesContainer.items
       .query({
-        query: 'SELECT * FROM c WHERE c.assignedWorker.id = @providerId',
+        query: `
+          SELECT * FROM c 
+          WHERE ARRAY_CONTAINS(c.services.providers, @providerId)
+          OR ARRAY_CONTAINS(c.assignedTo, @providerId)
+          OR c.assignedProviderId = @providerId
+          OR c.primaryProviderId = @providerId
+          OR c.assignedWorker.id = @providerId
+        `,
         parameters: [{ name: '@providerId', value: providerId }]
       })
       .fetchAll()
 
     // Get context for each case
-    const caseContexts = await Promise.all(cases.map(async (case_) => {
-      const caseQuery = `
-        Case Type: ${case_.type}
-        Status: ${case_.status}
-        Goals: ${case_.goals?.map((g: any) => g.description).join(', ')}
-        Challenges: ${case_.challenges?.join(', ')}
-        Key Interventions: ${case_.keyInterventions?.join(', ')}
-      `
-
-      try {
-        // Get case context
-        const context = await getContextForCase(case_.id, caseQuery, {
-          limit: options.limit,
-          threshold: options.threshold,
-        })
-
-        // Get related documents for this case
-        const [coachingSessions, reviews, children, caregivers] = await Promise.all([
-          // Get coaching sessions
-          searchSimilarDocuments(caseQuery, {
-            caseId: case_.id,
-            limit: options.limit,
-            threshold: options.threshold,
-            type: 'coaching'
-          }),
-
-          // Get reviews
-          searchSimilarDocuments(caseQuery, {
-            caseId: case_.id,
-            limit: options.limit,
-            threshold: options.threshold,
-            type: 'review'
-          }),
-
-          // Get children
-          searchSimilarDocuments(caseQuery, {
-            caseId: case_.id,
-            limit: options.limit,
-            threshold: options.threshold,
-            type: 'child'
-          }),
-
-          // Get caregivers
-          searchSimilarDocuments(caseQuery, {
-            caseId: case_.id,
-            limit: options.limit,
-            threshold: options.threshold,
-            type: 'caregiver'
-          })
-        ])
-
+    const caseContexts = await Promise.all(
+      cases.map(async (case_: Case) => {
+        const context = await getContextForCase(case_.id, query, options)
         return {
-          caseId: case_.id,
-          familyName: case_.familyName,
-          context: context.documents.map((doc: any) => doc.content).join('\n\n'),
+          familyName: case_.familyName || 'Unnamed Family',
           summary: context.summary,
-          coachingSessions,
-          reviews,
-          children,
-          caregivers
+          context: context.documents.map(doc => doc.content).join('\n')
         }
-      } catch (error) {
-        console.error(`Failed to get context for case ${case_.id}:`, error)
-        return {
-          caseId: case_.id,
-          familyName: case_.familyName,
-          context: caseQuery,
-          summary: case_.summary || case_.notes?.[0]?.content || 'No summary available',
-          coachingSessions: [],
-          reviews: [],
-          children: [],
-          caregivers: []
-        }
-      }
-    }))
+      })
+    )
 
     // Get provider-specific documents
-    const providerDocuments = await searchSimilarDocuments(query, {
+    const documents = await searchSimilarDocuments(query, {
       providerId,
       limit: options.limit,
       threshold: options.threshold,
     })
 
-    // Create summary prompt template
+    // Create provider summary prompt
     const summaryPrompt = PromptTemplate.fromTemplate(`
-      Based on the following provider's entire caseload and documents, provide a comprehensive summary relevant to the query: "{query}"
-      
-      Provider's Cases:
+      Based on the following provider's cases and documents, provide a comprehensive summary of their work and patterns:
+
+      Cases:
       {caseContexts}
-      
+
       Provider Documents:
       {documents}
-      
+
       Provide a summary that:
-      1. Highlights key patterns and insights across all cases
-      2. Identifies successful strategies and approaches
-      3. Notes areas for improvement or concern
-      4. Suggests opportunities for cross-case learning
-      5. Recommends provider-level strategies
-      6. Considers coaching sessions and their impact
-      7. Evaluates review feedback and progress
-      8. Analyzes child and caregiver dynamics
+      1. Highlights key patterns across their caseload
+      2. Identifies their strengths and areas for improvement
+      3. Notes any concerning trends or positive developments
+      4. Suggests potential areas for professional development
     `)
 
-    // Create summary chain
+    // Generate summary
     const summaryChain = RunnableSequence.from([
       summaryPrompt,
       chatModel,
       new StringOutputParser(),
     ])
 
-    // Generate summary
     const summary = await summaryChain.invoke({
-      query,
       caseContexts: caseContexts.map(ctx => `
         Case: ${ctx.familyName}
         Summary: ${ctx.summary}
         Context: ${ctx.context}
-        
-        Coaching Sessions:
-        ${ctx.coachingSessions.map((doc, i) => `
-          Session ${i + 1}:
-          ${doc.content}
-          Date: ${doc.metadata.timestamp}
-        `).join('\n')}
-        
-        Reviews:
-        ${ctx.reviews.map((doc, i) => `
-          Review ${i + 1}:
-          ${doc.content}
-          Date: ${doc.metadata.timestamp}
-        `).join('\n')}
-        
-        Children:
-        ${ctx.children.map((doc, i) => `
-          Child ${i + 1}:
-          ${doc.content}
-          Date: ${doc.metadata.timestamp}
-        `).join('\n')}
-        
-        Caregivers:
-        ${ctx.caregivers.map((doc, i) => `
-          Caregiver ${i + 1}:
-          ${doc.content}
-          Date: ${doc.metadata.timestamp}
-        `).join('\n')}
       `).join('\n\n'),
-      documents: providerDocuments.map((doc, i) => `
+      documents: documents.map((doc, i) => `
         Document ${i + 1}:
         ${doc.content}
         Type: ${doc.metadata.type}
@@ -623,12 +549,12 @@ export async function getContextForProvider(
     })
 
     return {
-      documents: providerDocuments,
       summary,
-      caseContexts
+      caseContexts,
+      documents,
     }
   } catch (error) {
     console.error('Provider context retrieval error:', error)
     throw new Error('Failed to get provider context')
   }
-} 
+}

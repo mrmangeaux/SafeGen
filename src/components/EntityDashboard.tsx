@@ -18,12 +18,51 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+interface BaseEntity {
+  id: string;
+  name: string;
+}
+
+interface Child extends BaseEntity {
+  age: number;
+}
+
+interface Caregiver extends BaseEntity {
+  type: string;
+}
+
+interface Parent extends BaseEntity {
+  status: string;
+}
+
+interface Provider extends BaseEntity {
+  role: string;
+}
+
+type Entity = Child | Caregiver | Parent | Provider;
+
 interface EntityDashboardProps {
   cases: any[];
   children: any[];
   caregivers: any[];
   parents: any[];
   providers: any[];
+}
+
+function isChild(entity: Entity): entity is Child {
+  return 'age' in entity;
+}
+
+function isCaregiver(entity: Entity): entity is Caregiver {
+  return 'type' in entity;
+}
+
+function isParent(entity: Entity): entity is Parent {
+  return 'status' in entity;
+}
+
+function isProvider(entity: Entity): entity is Provider {
+  return 'role' in entity;
 }
 
 export function EntityDashboard({
@@ -36,7 +75,7 @@ export function EntityDashboard({
   const [selectedEntityType, setSelectedEntityType] = useState<string>('child');
   const [selectedEntityId, setSelectedEntityId] = useState<string>('');
 
-  const getEntityOptions = () => {
+  const getEntityOptions = (): Entity[] => {
     switch (selectedEntityType) {
       case 'child':
         return children.map(child => ({
@@ -236,10 +275,10 @@ export function EntityDashboard({
             {getEntityOptions().map((entity) => (
               <SelectItem key={entity.id} value={entity.id}>
                 {entity.name}
-                {entity.age && ` (${entity.age} years)`}
-                {entity.type && ` - ${entity.type}`}
-                {entity.role && ` - ${entity.role}`}
-                {entity.status && ` - ${entity.status}`}
+                {isChild(entity) && ` (${entity.age} years)`}
+                {isCaregiver(entity) && ` - ${entity.type}`}
+                {isProvider(entity) && ` - ${entity.role}`}
+                {isParent(entity) && ` - ${entity.status}`}
               </SelectItem>
             ))}
           </SelectContent>

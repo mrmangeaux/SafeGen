@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { CosmosClient } from '@azure/cosmos'
 
 const endpoint = process.env.COSMOS_ENDPOINT!
@@ -14,11 +12,6 @@ const container = client.database(databaseId).container(containerId)
 // POST /api/providers/reviews - Create a new review
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
-
     const body = await request.json()
     const { providerId, rating, comment, rubricId, rubricEvaluation } = body
 
@@ -33,7 +26,6 @@ export async function POST(request: Request) {
       comment,
       rubricId,
       rubricEvaluation,
-      userId: session.user.id,
       createdAt: new Date().toISOString(),
       type: 'review',
     }
@@ -50,11 +42,6 @@ export async function POST(request: Request) {
 // GET /api/providers/reviews - Get reviews for a provider
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const providerId = searchParams.get('providerId')
 

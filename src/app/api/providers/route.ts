@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { CosmosClient } from '@azure/cosmos';
 
-const endpoint = process.env.COSMOS_ENDPOINT;
-const key = process.env.COSMOS_KEY;
-const databaseId = process.env.COSMOS_DATABASE_ID;
+const endpoint = process.env.NEXT_PUBLIC_COSMOS_ENDPOINT;
+const key = process.env.NEXT_PUBLIC_COSMOS_KEY;
+const databaseId = process.env.NEXT_PUBLIC_COSMOS_DATABASE_ID;
 
 if (!endpoint || !key || !databaseId) {
   throw new Error('Missing required Cosmos DB configuration');

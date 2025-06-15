@@ -1,6 +1,6 @@
 import { LettaClient } from '@letta-ai/letta-client';
 
-const LETTA_BASE_URL = process.env.NEXT_PUBLIC_LETTA_API_URL || 'http://localhost:8283';
+const LETTA_BASE_URL = process.env.NEXT_PUBLIC_LETTA_API_URL
 
 // Initialize the Letta client
 const client = new LettaClient({
